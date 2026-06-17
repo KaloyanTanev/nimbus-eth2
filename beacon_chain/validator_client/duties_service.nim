@@ -316,26 +316,33 @@ proc pollForAttesterDuties*(
     if (counts[0].count == 0) and (counts[1].count == 0):
       debug "No new attester's duties received", slot = currentSlot
 
-    block:
-      let
-        moment = Moment.now()
-        sigres =
-          await vc.fillAttestationSelectionProofs(currentSlot,
-            currentSlot + AGGREGATION_PRE_COMPUTE_SLOTS)
+    if vc.config.distributedEnabled:
+      for epoch in [currentEpoch, nextEpoch]:
+        let
+          moment = Moment.now()
+          sigres =
+            await vc.fillAttestationSelectionProofs(epoch.start_slot(),
+              (epoch + 1'u64).start_slot() - 1)
 
-      if vc.config.distributedEnabled:
         debug "Attestation selection proofs have been received",
+              epoch = epoch,
               signatures_requested = sigres.signaturesRequested,
               signatures_received = sigres.signaturesReceived,
               selections_requested = sigres.selectionsRequested,
               selections_received = sigres.selectionsReceived,
               selections_processed = sigres.selectionsProcessed,
               total_elapsed_time = (Moment.now() - moment)
-      else:
-        debug "Attestation selection proofs have been received",
-              signatures_requested = sigres.signaturesRequested,
-              signatures_received = sigres.signaturesReceived,
-              total_elapsed_time = (Moment.now() - moment)
+    else:
+      let
+        moment = Moment.now()
+        sigres =
+          await vc.fillAttestationSelectionProofs(currentSlot,
+            currentSlot + AGGREGATION_PRE_COMPUTE_SLOTS)
+
+      debug "Attestation selection proofs have been received",
+            signatures_requested = sigres.signaturesRequested,
+            signatures_received = sigres.signaturesReceived,
+            total_elapsed_time = (Moment.now() - moment)
 
     let subscriptions =
       block:
