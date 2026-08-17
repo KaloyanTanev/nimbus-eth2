@@ -320,9 +320,13 @@ proc pollForAttesterDuties*(
     block:
       let
         moment = Moment.now()
+        finishSlot =
+          if vc.config.distributedEnabled:
+            nextEpoch.finish_slot()
+          else:
+            currentSlot + AGGREGATION_PRE_COMPUTE_SLOTS
         sigres =
-          await vc.fillAttestationSelectionProofs(currentSlot,
-            currentSlot + AGGREGATION_PRE_COMPUTE_SLOTS)
+          await vc.fillAttestationSelectionProofs(currentSlot, finishSlot)
 
       if vc.config.distributedEnabled:
         debug "Attestation selection proofs have been received",
