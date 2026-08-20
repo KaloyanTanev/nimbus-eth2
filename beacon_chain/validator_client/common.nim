@@ -78,6 +78,7 @@ type
     pollingAttesterDutiesTask*: Future[void]
     pollingSyncDutiesTask*: Future[void]
     pruneSlashingDatabaseTask*: Future[void]
+    attesterSubscriptionEpoch*: Opt[Epoch]
     syncSubscriptionEpoch*: Opt[Epoch]
     lastSlashingEpoch*: Opt[Epoch]
 

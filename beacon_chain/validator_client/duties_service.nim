@@ -350,27 +350,51 @@ proc pollForAttesterDuties*(
             signatures_received = sigres.signaturesReceived,
             total_elapsed_time = (Moment.now() - moment)
 
+    if vc.config.distributedEnabled and
+       ((counts[0].count > 0) or (counts[1].count > 0)):
+      # Duties were added or replaced (re-organization), so subscriptions
+      # must be sent out again with flags based on the new duties.
+      service.attesterSubscriptionEpoch = Opt.none(Epoch)
+
+    let subscriptionEpochs =
+      block:
+        var res: seq[Epoch]
+        if vc.config.distributedEnabled:
+          # In distributed mode subscriptions are sent once per epoch for all
+          # known duties, after selection proofs for those duties have been
+          # exchanged, so that `is_aggregator` is based on aggregated proofs.
+          if service.attesterSubscriptionEpoch.get(FAR_FUTURE_EPOCH) !=
+             currentEpoch:
+            res.add(currentEpoch)
+            res.add(nextEpoch)
+        else:
+          for item in counts:
+            if item.count > 0:
+              res.add(item.epoch)
+        res
+
+    var proofsComplete = true
     let subscriptions =
       block:
         var res: seq[RestCommitteeSubscription]
-        for item in counts:
-          if item.count > 0:
-            for duty in vc.attesterDutiesForEpoch(item.epoch):
-              if currentSlot + SUBSCRIPTION_BUFFER_SLOTS < duty.data.slot:
-                let isAggregator =
-                  if duty.slotSig.isSome():
-                    is_aggregator(duty.data.committee_length,
-                                  duty.slotSig.get())
-                  else:
-                    false
-                let sub = RestCommitteeSubscription(
-                  validator_index: duty.data.validator_index,
-                  committee_index: duty.data.committee_index,
-                  committees_at_slot: duty.data.committees_at_slot,
-                  slot: duty.data.slot,
-                  is_aggregator: isAggregator
-                )
-                res.add(sub)
+        for epoch in subscriptionEpochs:
+          for duty in vc.attesterDutiesForEpoch(epoch):
+            if currentSlot + SUBSCRIPTION_BUFFER_SLOTS < duty.data.slot:
+              let isAggregator =
+                if duty.slotSig.isSome():
+                  is_aggregator(duty.data.committee_length,
+                                duty.slotSig.get())
+                else:
+                  proofsComplete = false
+                  false
+              let sub = RestCommitteeSubscription(
+                validator_index: duty.data.validator_index,
+                committee_index: duty.data.committee_index,
+                committees_at_slot: duty.data.committees_at_slot,
+                slot: duty.data.slot,
+                is_aggregator: isAggregator
+              )
+              res.add(sub)
         res
 
     if len(subscriptions) > 0:
@@ -387,6 +411,12 @@ proc pollForAttesterDuties*(
         warn "Failed to subscribe validators to beacon committee subnets",
              slot = currentSlot, epoch = currentEpoch,
              subscriptions_count = len(subscriptions)
+      elif vc.config.distributedEnabled and proofsComplete:
+        # Subscriptions with all `is_aggregator` flags based on aggregated
+        # selection proofs were sent, so there is nothing more to send this
+        # epoch. Otherwise the next polling round will fill the missing
+        # proofs and send the subscriptions again.
+        service.attesterSubscriptionEpoch = Opt.some(currentEpoch)
 
   service.pruneAttesterDuties(currentEpoch)
 
