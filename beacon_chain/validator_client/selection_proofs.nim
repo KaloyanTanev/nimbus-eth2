@@ -177,6 +177,8 @@ proc fillAttestationSelectionProofs*(
             selections, vc.getMode()[FnKind.submitBeaconCommitteeSelections])
         except ValidatorApiError as exc:
           warn "Unable to submit beacon committee selections",
+               start_slot = start, finish_slot = finish,
+               selections_count = len(selections),
                reason = exc.getFailureReason()
           return sigres
         except CancelledError as exc:
