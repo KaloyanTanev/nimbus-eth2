@@ -143,7 +143,7 @@ proc fillAttestationSelectionProofs*(
               mreq.future = nil
               mreq.proof = signature
 
-              if signature.isSome():
+              if signature.isSome() and not(vc.config.distributedEnabled):
                 vc.attesters.withValue(mreq.validator.pubkey, map):
                   map[].duties.withValue(mreq.slot.epoch(), dap):
                     dap[].slotSig = signature
@@ -177,6 +177,8 @@ proc fillAttestationSelectionProofs*(
             selections, vc.getMode()[FnKind.submitBeaconCommitteeSelections])
         except ValidatorApiError as exc:
           warn "Unable to submit beacon committee selections",
+               start_slot = start, finish_slot = finish,
+               selections_count = len(selections),
                reason = exc.getFailureReason()
           return sigres
         except CancelledError as exc:
