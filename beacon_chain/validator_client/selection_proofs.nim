@@ -143,7 +143,7 @@ proc fillAttestationSelectionProofs*(
               mreq.future = nil
               mreq.proof = signature
 
-              if signature.isSome():
+              if signature.isSome() and not(vc.config.distributedEnabled):
                 vc.attesters.withValue(mreq.validator.pubkey, map):
                   map[].duties.withValue(mreq.slot.epoch(), dap):
                     dap[].slotSig = signature
